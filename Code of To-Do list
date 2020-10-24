@@ -1,0 +1,143 @@
+from sqlalchemy import create_engine, and_
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, Integer, String, Date
+from datetime import datetime, timedelta
+from sqlalchemy.orm import sessionmaker
+
+engine = create_engine('sqlite:///todo.db?check_same_thread=False')
+Base = declarative_base()
+Session = sessionmaker(bind=engine)
+session = Session()
+
+
+class Table(Base):
+    __tablename__ = 'task'
+    id = Column(Integer, primary_key=True)
+    task = Column(String, default='task')
+    deadline = Column(Date, default=datetime.today())
+
+    @staticmethod
+    def add_task(new_task, date):
+        new_row = Table(task=new_task, deadline=datetime.strptime(f'{date}', '%Y-%m-%d').date())
+        session.add(new_row)
+        session.commit()
+
+    @staticmethod
+    def show_task():
+        rows = session.query(Table).order_by(Table.deadline).all()
+        return rows
+
+    @staticmethod
+    def show_today_task():
+        today = datetime.today()
+        rows = session.query(Table).filter(Table.deadline == today.date()).all()
+        return rows
+
+    @staticmethod
+    def show_week_task():
+        today = datetime.today()
+        week = today + timedelta(days=6)
+        rows = session.query(Table).filter(and_(Table.deadline <= week.date(), Table.deadline >= today.date())).all()
+        return rows
+
+    @staticmethod
+    def missed_task():
+        today = datetime.today()
+        missed = today - timedelta(days=1)
+        rows = session.query(Table).filter(Table.deadline <= missed.date()).all()
+        return rows
+
+    @staticmethod
+    def delete_task(task_id):
+        rows = session.query(Table).filter(Table.id == task_id).all()
+        session.delete(rows[0])
+        session.commit()
+        print('The task has been deleted!')
+
+
+Base.metadata.create_all(engine)
+
+while True:
+    print("1) Today's tasks")
+    print("2) Week's tasks")
+    print("3) All tasks")
+    print("4) Missed tasks")
+    print("5) Add task")
+    print("6) Delete task")
+    print("0) Exit")
+    userInput = int(input())
+
+    if userInput == 0:
+        print('Bye!')
+        break
+
+    elif userInput == 1:
+        if len(Table.show_today_task()) == 0:
+            today = datetime.today()
+            print(f"{today.strftime('%A')} {today.day} {today.strftime('%b')}")
+            print('Nothing to do!')
+        else:
+            for i in range(len(Table.show_today_task())):
+                print(f"{Table.show_today_task()[i].deadline.strftime('%A')}"
+                      f" {Table.show_today_task()[i].deadline.day} {Table.show_today_task()[i].deadline.strftime('%b')}")
+                print(f'{i+1}. {Table.show_today_task()[i].task}')
+
+    elif userInput == 2:
+        today = datetime.today()
+        for i in range(7):
+            counter = 0
+            print(f"\n{(today + timedelta(i)).strftime('%A')}"
+                  f" {(today + timedelta(i)).day} {(today + timedelta(i)).strftime('%b')}")
+            for j in Table.show_week_task():
+                #print(j.deadline)
+                #print((today + timedelta(i)).date())
+                if j.deadline == (today + timedelta(i)).date():
+                    counter += 1
+                    print(f'{counter}. {j.task}')
+            if counter == 0:
+                print('Nothing to do!')
+    elif userInput == 5:
+        print('Enter task')
+        newTask = str(input())
+        print('Enter deadline')
+        newDate = str(input())
+        Table.add_task(newTask, newDate)
+        print('The task has been added!')
+
+    elif userInput == 3:
+        if len(Table.show_task()) == 0:
+            print('Nothing to do!')
+        else:
+            for i in range(len(Table.show_task())):
+                print(f"{i+1}. {Table.show_task()[i].task}. {Table.show_task()[i].deadline.day}"
+                      f" {Table.show_task()[i].deadline.strftime('%b')}")
+
+    elif userInput == 4:
+        print('Missed tasks:')
+        if len(Table.missed_task()) == 0:
+            print('Nothing is missed!')
+        else:
+            for i in range(len(Table.missed_task())):
+                print(f"{i+1}. {Table.missed_task()[i].task}. {Table.missed_task()[i].deadline.day}"
+                      f" {Table.missed_task()[i].deadline.strftime('%b')}")
+        print()
+    elif userInput == 6:
+        mas = []
+        print('Choose the number of the task you want to delete:')
+        if len(Table.show_task()) == 0:
+            print('Nothing to do!')
+        else:
+            for i in range(len(Table.show_task())):
+                print(f"{i+1}. {Table.show_task()[i].task}. {Table.show_task()[i].deadline.day}"
+                          f" {Table.show_task()[i].deadline.strftime('%b')}")
+                mas.append(i+1)
+                mas.append(Table.show_task()[i].id)
+        deleteInput = int(input())
+        Table.delete_task(mas[deleteInput])
+        #mas.remove(userInput)
+        #mas.remove(mas[userInput+1])
+        print(mas)
+        for i in range(len(mas)):
+            if i % 2 == 0:
+                mas[i] = mas[i] - 1
+        print(mas)
